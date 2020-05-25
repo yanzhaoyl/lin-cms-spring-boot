@@ -13,6 +13,7 @@ import io.github.talelin.latticy.vo.CreatedVO;
 import io.github.talelin.latticy.vo.DeletedVO;
 import io.github.talelin.latticy.vo.PageResponseVO;
 import io.github.talelin.latticy.vo.UpdatedVO;
+import org.springframework.validation.annotation.Validated;
 
 import javax.validation.constraints.Min;
 import javax.validation.constraints.Max;
@@ -41,6 +42,7 @@ import ${superControllerClassPackage};
 @Controller
 </#if>
 @RequestMapping("/${package.Controller?split(".")?last}<#if package.ModuleName??>/${package.ModuleName}</#if>/<#if controllerMappingHyphenStyle??>${controllerMappingHyphen?replace("-do", "")}<#else>${table.entityPath?replace("DO", "")}</#if>")
+@Validated
 <#if kotlin>
 class ${table.controllerName}<#if superControllerClass??> : ${superControllerClass}()</#if>
 <#else>
