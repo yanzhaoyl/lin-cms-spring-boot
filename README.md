@@ -113,3 +113,47 @@ starter，见 [lin-cms-java-core](https://github.com/TaleLin/lin-cms-java-core.g
 
 
 
+
+## 在作者原版的基础上,增加了 https 访问方式  
+
+1. 在项目根目录下(pom.xml 的 同级目录 ) 加入了 server.keystore 证书文件
+2. 调整了 application.yml  配置文件 加入了 ssl 的属性
+```
+server:
+  ssl:
+    key-store: server.keystore
+    key-alias: tomcat
+    enabled: true
+    key-store-password: 123456
+    key-store-type: JKS
+```
+3. 在 LatticyApplication 启动类中 加入了 http 请求 跳转到 https 请求的方法
+```java
+
+    @Bean
+ 	public Connector connector() {
+ 		Connector connector = new Connector("org.apache.coyote.http11.Http11NioProtocol");
+ 		connector.setScheme("http");
+ 		connector.setPort(80);
+ 		connector.setSecure(false);
+ 		connector.setRedirectPort(5000);
+ 		return connector;
+ 	}
+
+ 	@Bean
+ 	public TomcatServletWebServerFactory tomcatServletWebServerFactory(Connector connector) {
+ 		TomcatServletWebServerFactory tomcat = new TomcatServletWebServerFactory() {
+ 			@Override
+ 			protected void postProcessContext(Context context) {
+ 				SecurityConstraint securityConstraint = new SecurityConstraint();
+ 				securityConstraint.setUserConstraint("CONFIDENTIAL");
+ 				SecurityCollection collection = new SecurityCollection();
+ 				collection.addPattern("/*");
+ 				securityConstraint.addCollection(collection);
+ 				context.addConstraint(securityConstraint);
+ 			}
+ 		};
+ 		tomcat.addAdditionalTomcatConnectors(connector);
+ 		return tomcat;
+ 	}
+```

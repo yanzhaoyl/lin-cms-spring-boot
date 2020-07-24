@@ -10,6 +10,7 @@ import java.io.Serializable;
  * @author Juzi@TaleLin
  */
 @Data
+// builder 链式调用
 @Builder
 @TableName("lin_permission")
 @EqualsAndHashCode(callSuper = true)
@@ -17,21 +18,21 @@ import java.io.Serializable;
 @AllArgsConstructor
 public class PermissionDO extends BaseModel implements Serializable {
 
-    private static final long serialVersionUID = -2400022443732120128L;
+	private static final long serialVersionUID = -2400022443732120128L;
 
-    /**
-     * 权限名称，例如：访问首页
-     */
-    private String name;
+	/**
+	 * 权限名称，例如：访问首页
+	 */
+	private String name;
 
-    /**
-     * 权限所属模块，例如：人员管理
-     */
-    private String module;
+	/**
+	 * 权限所属模块，例如：人员管理
+	 */
+	private String module;
 
-    /**
-     * 0：关闭 1：开启
-     */
-    private Boolean mount;
+	/**
+	 * 0：关闭 1：开启
+	 */
+	private Boolean mount;
 
 }

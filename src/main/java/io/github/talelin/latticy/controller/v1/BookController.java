@@ -1,14 +1,9 @@
 package io.github.talelin.latticy.controller.v1;
 
-import io.github.talelin.autoconfigure.exception.NotFoundException;
-import io.github.talelin.core.annotation.GroupRequired;
-import io.github.talelin.core.annotation.PermissionMeta;
-import io.github.talelin.latticy.dto.book.CreateOrUpdateBookDTO;
-import io.github.talelin.latticy.model.BookDO;
-import io.github.talelin.latticy.service.BookService;
-import io.github.talelin.latticy.vo.CreatedVO;
-import io.github.talelin.latticy.vo.DeletedVO;
-import io.github.talelin.latticy.vo.UpdatedVO;
+import java.util.List;
+
+import javax.validation.constraints.Positive;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -21,8 +16,15 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import javax.validation.constraints.Positive;
-import java.util.List;
+import io.github.talelin.autoconfigure.exception.NotFoundException;
+import io.github.talelin.core.annotation.AdminRequired;
+import io.github.talelin.core.annotation.PermissionMeta;
+import io.github.talelin.latticy.dto.book.CreateOrUpdateBookDTO;
+import io.github.talelin.latticy.model.BookDO;
+import io.github.talelin.latticy.service.BookService;
+import io.github.talelin.latticy.vo.CreatedVO;
+import io.github.talelin.latticy.vo.DeletedVO;
+import io.github.talelin.latticy.vo.UpdatedVO;
 
 /**
  * @author pedro@TaleLin
@@ -78,7 +80,8 @@ public class BookController {
 
 
     @DeleteMapping("/{id}")
-    @GroupRequired
+//    @GroupRequired
+    @AdminRequired
     @PermissionMeta(value = "删除图书", module = "图书")
     public DeletedVO deleteBook(@PathVariable("id") @Positive(message = "{id.positive}") Integer id) {
         BookDO book = bookService.getById(id);

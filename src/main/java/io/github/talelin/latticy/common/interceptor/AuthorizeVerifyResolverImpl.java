@@ -30,148 +30,152 @@ import java.util.Map;
 import java.util.regex.Pattern;
 
 /**
+ * 判断权限类
+ * 
  * @author pedro@TaleLin
  * @author Juzi@TaleLin
  */
 @Component
 public class AuthorizeVerifyResolverImpl implements AuthorizeVerifyResolver {
 
-    public final static String AUTHORIZATION_HEADER = "Authorization";
+	public final static String AUTHORIZATION_HEADER = "Authorization";
 
-    public final static String BEARER_PATTERN = "^Bearer$";
+	public final static String BEARER_PATTERN = "^Bearer$";
 
-    @Autowired
-    private DoubleJWT jwt;
+	@Autowired
+	private DoubleJWT jwt;
 
-    @Autowired
-    private UserService userService;
+	@Autowired
+	private UserService userService;
 
-    @Autowired
-    private GroupService groupService;
+	@Autowired
+	private GroupService groupService;
 
-    @Value("${lin.file.domain}")
-    private String domain;
+	@Value("${lin.file.domain}")
+	private String domain;
 
-    @Value("${lin.file.serve-path:assets/**}")
-    private String servePath;
+	@Value("${lin.file.serve-path:assets/**}")
+	private String servePath;
 
+	@Override
+	public boolean handleLogin(HttpServletRequest request, HttpServletResponse response, MetaInfo meta) {
+		String tokenStr = verifyHeader(request, response);
+		Map<String, Claim> claims;
+		try {
+			claims = jwt.decodeAccessToken(tokenStr);
+		} catch (TokenExpiredException e) {
+			throw new io.github.talelin.autoconfigure.exception.TokenExpiredException(10051);
+		} catch (AlgorithmMismatchException | SignatureVerificationException | JWTDecodeException
+				| InvalidClaimException e) {
+			throw new TokenInvalidException(10041);
+		}
+		return getClaim(claims);
+	}
 
-    @Override
-    public boolean handleLogin(HttpServletRequest request, HttpServletResponse response, MetaInfo meta) {
-        String tokenStr = verifyHeader(request, response);
-        Map<String, Claim> claims;
-        try {
-            claims = jwt.decodeAccessToken(tokenStr);
-        } catch (TokenExpiredException e) {
-            throw new io.github.talelin.autoconfigure.exception.TokenExpiredException(10051);
-        } catch (AlgorithmMismatchException | SignatureVerificationException | JWTDecodeException | InvalidClaimException e) {
-            throw new TokenInvalidException(10041);
-        }
-        return getClaim(claims);
-    }
+	@Override
+	public boolean handleGroup(HttpServletRequest request, HttpServletResponse response, MetaInfo meta) {
+		handleLogin(request, response, meta);
+		UserDO user = LocalUser.getLocalUser();
+		if (verifyAdmin(user)) {
+			return true;
+		}
+		Integer userId = user.getId();
+		String permission = meta.getPermission();
+		String module = meta.getModule();
+		List<PermissionDO> permissions = userService.getUserPermissions(userId);
+		boolean matched = permissions.stream()
+				.anyMatch(it -> it.getModule().equals(module) && it.getName().equals(permission));
+		if (!matched) {
+			throw new AuthenticationException(10001);
+		}
+		return true;
+	}
 
-    @Override
-    public boolean handleGroup(HttpServletRequest request, HttpServletResponse response, MetaInfo meta) {
-        handleLogin(request, response, meta);
-        UserDO user = LocalUser.getLocalUser();
-        if (verifyAdmin(user)) {
-            return true;
-        }
-        Integer userId = user.getId();
-        String permission = meta.getPermission();
-        String module = meta.getModule();
-        List<PermissionDO> permissions = userService.getUserPermissions(userId);
-        boolean matched = permissions.stream().anyMatch(it -> it.getModule().equals(module) && it.getName().equals(permission));
-        if (!matched) {
-            throw new AuthenticationException(10001);
-        }
-        return true;
-    }
+	@Override
+	public boolean handleAdmin(HttpServletRequest request, HttpServletResponse response, MetaInfo meta) {
+		handleLogin(request, response, meta);
+		UserDO user = LocalUser.getLocalUser();
+		if (!verifyAdmin(user)) {
+			throw new AuthenticationException(10001);
+		}
+		return true;
+	}
 
-    @Override
-    public boolean handleAdmin(HttpServletRequest request, HttpServletResponse response, MetaInfo meta) {
-        handleLogin(request, response, meta);
-        UserDO user = LocalUser.getLocalUser();
-        if (!verifyAdmin(user)) {
-            throw new AuthenticationException(10001);
-        }
-        return true;
-    }
+	@Override
+	public boolean handleRefresh(HttpServletRequest request, HttpServletResponse response, MetaInfo meta) {
+		String tokenStr = verifyHeader(request, response);
+		Map<String, Claim> claims;
+		try {
+			claims = jwt.decodeRefreshToken(tokenStr);
+		} catch (TokenExpiredException e) {
+			throw new io.github.talelin.autoconfigure.exception.TokenExpiredException(10051);
+		} catch (AlgorithmMismatchException | SignatureVerificationException | JWTDecodeException
+				| InvalidClaimException e) {
+			throw new TokenInvalidException(10041);
+		}
+		return getClaim(claims);
+	}
 
+	@Override
+	public boolean handleNotHandlerMethod(HttpServletRequest request, HttpServletResponse response, Object handler) {
+		return true;
+	}
 
-    @Override
-    public boolean handleRefresh(HttpServletRequest request, HttpServletResponse response, MetaInfo meta) {
-        String tokenStr = verifyHeader(request, response);
-        Map<String, Claim> claims;
-        try {
-            claims = jwt.decodeRefreshToken(tokenStr);
-        } catch (TokenExpiredException e) {
-            throw new io.github.talelin.autoconfigure.exception.TokenExpiredException(10051);
-        } catch (AlgorithmMismatchException | SignatureVerificationException | JWTDecodeException | InvalidClaimException e) {
-            throw new TokenInvalidException(10041);
-        }
-        return getClaim(claims);
-    }
+	@Override
+	public void handleAfterCompletion(HttpServletRequest request, HttpServletResponse response, Object handler,
+			Exception ex) {
+		// 记住：很重要，请求结束后，一定要清理 ThreadLocal 中的用户信息
+		LocalUser.clearLocalUser();
+	}
 
-    @Override
-    public boolean handleNotHandlerMethod(HttpServletRequest request, HttpServletResponse response, Object handler) {
-        return true;
-    }
+	private boolean getClaim(Map<String, Claim> claims) {
+		if (claims == null) {
+			throw new TokenInvalidException(10041);
+		}
+		int identity = claims.get("identity").asInt();
+		UserDO user = userService.getById(identity);
+		if (user == null) {
+			throw new NotFoundException(10021);
+		}
+		String avatarUrl;
+		if (user.getAvatar() == null) {
+			avatarUrl = null;
+		} else if (user.getAvatar().startsWith("http")) {
+			avatarUrl = user.getAvatar();
+		} else {
+			avatarUrl = domain + servePath.split("/")[0] + "/" + user.getAvatar();
+		}
+		user.setAvatar(avatarUrl);
+		LocalUser.setLocalUser(user);
+		return true;
+	}
 
-    @Override
-    public void handleAfterCompletion(HttpServletRequest request, HttpServletResponse response, Object handler, Exception ex) {
-        // 记住：很重要，请求结束后，一定要清理 ThreadLocal 中的用户信息
-        LocalUser.clearLocalUser();
-    }
+	/**
+	 * 检查用户是否为管理员
+	 *
+	 * @param user 用户
+	 */
+	private boolean verifyAdmin(UserDO user) {
+		return groupService.checkIsRootByUserId(user.getId());
+	}
 
-    private boolean getClaim(Map<String, Claim> claims) {
-        if (claims == null) {
-            throw new TokenInvalidException(10041);
-        }
-        int identity = claims.get("identity").asInt();
-        UserDO user = userService.getById(identity);
-        if (user == null) {
-            throw new NotFoundException(10021);
-        }
-        String avatarUrl;
-        if (user.getAvatar() == null) {
-            avatarUrl = null;
-        } else if (user.getAvatar().startsWith("http")) {
-            avatarUrl = user.getAvatar();
-        } else {
-            avatarUrl = domain + servePath.split("/")[0] + "/" + user.getAvatar();
-        }
-        user.setAvatar(avatarUrl);
-        LocalUser.setLocalUser(user);
-        return true;
-    }
-
-    /**
-     * 检查用户是否为管理员
-     *
-     * @param user 用户
-     */
-    private boolean verifyAdmin(UserDO user) {
-        return groupService.checkIsRootByUserId(user.getId());
-    }
-
-    private String verifyHeader(HttpServletRequest request, HttpServletResponse response) {
-        // 处理头部header,带有access_token的可以访问
-        String authorization = request.getHeader(AUTHORIZATION_HEADER);
-        if (authorization == null || Strings.isBlank(authorization)) {
-            throw new AuthorizationException(10012);
-        }
-        String[] splits = authorization.split(" ");
-        if (splits.length != 2) {
-            throw new AuthorizationException(10013);
-        }
-        // Bearer 字段
-        String scheme = splits[0];
-        // token 字段
-        String tokenStr = splits[1];
-        if (!Pattern.matches(BEARER_PATTERN, scheme)) {
-            throw new AuthorizationException(10013);
-        }
-        return tokenStr;
-    }
+	private String verifyHeader(HttpServletRequest request, HttpServletResponse response) {
+		// 处理头部header,带有access_token的可以访问
+		String authorization = request.getHeader(AUTHORIZATION_HEADER);
+		if (authorization == null || Strings.isBlank(authorization)) {
+			throw new AuthorizationException(10012);
+		}
+		String[] splits = authorization.split(" ");
+		if (splits.length != 2) {
+			throw new AuthorizationException(10013);
+		}
+		// Bearer 字段
+		String scheme = splits[0];
+		// token 字段
+		String tokenStr = splits[1];
+		if (!Pattern.matches(BEARER_PATTERN, scheme)) {
+			throw new AuthorizationException(10013);
+		}
+		return tokenStr;
+	}
 }
