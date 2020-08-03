@@ -36,3 +36,4 @@ assets/
 logs/
 
 
+/.apt_generated_tests/

@@ -118,6 +118,15 @@
             <artifactId>spring-boot-configuration-processor</artifactId>
             <optional>true</optional>
         </dependency>
+        
+        <!--生成文档注释-->
+		<dependency>
+		    <groupId>com.github.shalousun</groupId>
+		    <artifactId>smart-doc</artifactId>
+		    <version>1.6</version>
+		    <scope>test</scope>
+		</dependency>
+
     </dependencies>
 
     <build>
